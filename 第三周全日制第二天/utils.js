@@ -35,6 +35,14 @@ var util = (function () {
             }
             reg = /^[+-]?(\d|[1-9]\d+)(\.\d+)?(px|pt|em|rem)?$/;
             return reg.test(res) ? parseFloat(res) : res;
+        },
+        getWin : function(attr,value){
+            if(typeof value == "undefined"){
+                return document.documentElement[attr]||document.body[attr]
+            }
+            document.documentElement[attr] = value;
+            document.body[attr] = value;
+
         }
     }
 
