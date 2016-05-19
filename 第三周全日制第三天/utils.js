@@ -247,10 +247,12 @@ var utils = (function () {
         return reg.test(ele.className);
     }
     function addClass(ele,strClass){
-        var className = ele.className;
-        var reg = new RegExp("(^| +)"+strClass+"( +|$)","g");
-        if(!reg.test(className)){
-            ele.className += " "+strClass;
+        var aryName = className.replace(/(^ +| +$)/g, "").split(/ +/g);
+        for (var i = 0; i < aryName.length; i++) {
+            if (!hasClass(ele, aryName[i])) {
+                ele.className += " " + aryName[i];
+                
+            }
         }
     }
 
