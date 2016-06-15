@@ -24,19 +24,30 @@ var sv = http.createServer(function (req, res) {
                     suffixType = "text/javascript";
                     break;
             }
-            
+
             //->2)读取对应资源文件中的内容
             var conFile = fs.readFileSync("." + pathname, "utf8");
 
             //->3)把内容响应给客户端
-            res.writeHead(200, {'content-type': suffixType + ';charset=utf-8;'});
+            res.writeHead(200, {'content-type': suffixType + ';charset=utf-8;', 'zhufeng': 7});
             res.end(conFile);
 
         } catch (e) {
             res.writeHead(404);
             res.end();
         }
+        return;
     }
+
+    //->数据请求
+    if (pathname === "/getAllList") {
+        res.writeHead(200, {'content-type': 'application/json;charset=utf-8;'});
+        res.end(JSON.stringify({
+            "name": "珠峰",
+            "age": 7
+        }));
+    }
+
 });
 sv.listen(80, function () {
     console.log("server is create success!");
