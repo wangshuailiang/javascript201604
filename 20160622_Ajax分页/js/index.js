@@ -1,151 +1,142 @@
-//->n存储的是当前页 ->total存储的总页数
-var boxList = document.getElementById("boxList"),
-    pageList = document.getElementById("pageList"),
-    pageLi = pageList.getElementsByTagName("li"),
-    boxBtn = document.getElementById("boxBtn"),
-    search = document.getElementById("search"),
-    total = 0,
-    n = 1;
+var n = 1, total = 0;
+var $bindPlan = $.Callbacks();//->在发布一个计划,$bindPlan存在几个常用方法:add是向计划表中追加方法 remove是从计划表中移除方法 fire触发计划中的方法按照顺序执行
 
-//->开始加载页面首先把第一页的数据请求回来进行数据绑定
-bindData();
-function bindData() {
-    //->jsonData:就是我们请求回来的数据
-    function callback(jsonData) {
-        if (!jsonData) {//->如果获取的内容不存在的话,我们就不在进行绑定了
-            return;
-        }
-        total = jsonData["total"];
-        var data = jsonData["data"],
-            str = '';
-
-        //->绑定列表区域的数据
-        for (var i = 0, len = data.length; i < len; i++) {
-            var curData = data[i];
-            str += '<li>';
-            str += '<span>' + curData["num"] + '</span>';
-            str += '<span>' + curData["name"] + '</span>';
-            str += '<span>' + (curData["sex"] == 1 ? "女" : "男") + '</span>';
-            str += '<span>' + curData["score"] + '</span>';
-            str += '</li>';
-        }
-        boxList.innerHTML = str;
-
-        //->绑定页码区域的数据
-        str = '';
-        for (i = 1; i <= total; i++) {
-            str += '<li>' + i + '</li>';
-        }
-        pageList.innerHTML = str;
-
-        //->让页码和当前页对应
-        for (i = 0, len = pageLi.length; i < len; i++) {
-            pageLi[i].className = (i + 1) == n ? "bg" : null;
-        }
-
-        //->让文本框中的文字显示当前页
-        search.value = n;
-    }
-
-    //->发送Ajax请求,请求成功后执行callback方法
-    ajax({
-        url: "/getData?n=" + n + "&_=" + Math.random(),
-        success: callback
+//->绑定列表区域的数据
+function bindList(data) {
+    var str = '';
+    $.each(data, function (index, curData) {
+        var sex = curData["sex"] == 1 ? "女" : "男";
+        //->在绑定数据的时候就把num存储到自己的自定义属性上,以后想要使用num直接的到自定义属性上获取即可
+        str += '<li num="' + curData["num"] + '" name="' + curData["name"] + '">';
+        str += '<span>' + curData["num"] + '</span>';
+        str += '<span>' + curData["name"] + '</span>';
+        str += '<span>' + sex + '</span>';
+        str += '<span>' + curData["score"] + '</span>';
+        str += '</li>';
     });
+    $(".boxList").html(str);
 }
+$bindPlan.add(bindList);
 
-//->使用事件委托处理boxBtn下的所有的点击操作
-boxBtn.onclick = function (ev) {
-    ev = ev || window.event;
-    var tar = ev.target || ev.srcElement,
-        tarTag = tar.tagName.toUpperCase();
+//->绑定分页区域的数据
+function bindPage() {
+    var str = '';
+    for (var i = 1; i <= total; i++) {
+        str += '<li>' + i + '</li>';
+    }
+    $("#pageList").html(str);
 
-    if (tarTag === "SPAN") {
-        if (tar.innerHTML === "FIRST") {
-            //->如果当前已经是第一页,在点击应该什么都不做
+    //->执行一次即可
+    $bindPlan.remove(arguments.callee);
+}
+$bindPlan.add(bindPage);
+
+//->让当前页码选中
+function checkBg() {
+    /*$("#pageList").children("li").each(function (index, curLi) {
+     //->this就是curLi
+     if ((index + 1) == n) {
+     $(this).addClass("bg");
+     } else {
+     $(this).removeClass("bg");
+     }
+     });*/
+    $("#pageList").children("li").eq(n - 1).addClass("bg").siblings().removeClass("bg");
+}
+$bindPlan.add(checkBg);
+
+//->让文本框中显示当前的页码:计划中绑定匿名函数会导致以后无法移除
+$bindPlan.add(function () {
+    $("#search").val(n);
+});
+
+
+//->给分页区域的按钮绑定点击事件
+function bindEvent() {
+    //->delegate是jQuery中专门用来处理事件委托的方法
+    $(".boxBtn").delegate("span", "click", function () {
+        var inn = $(this).html();
+        if (inn === "FIRST") {
             if (n == 1) {
                 return;
             }
             n = 1;
         }
-        if (tar.innerHTML === "LAST") {
-            //->如果当前已经是最后一页,在点击也应该什么都不做
+        if (inn === "LAST") {
             if (n == total) {
                 return;
             }
             n = total;
         }
-
-        if (tar.innerHTML === "PREV") {
-            //->当前已经是第一页则不需要上一页了
+        if (inn === "PREV") {
             if (n == 1) {
                 return;
             }
             n--;
         }
-        if (tar.innerHTML === "NEXT") {
-            //->当前已经是最后一页则不需要下一页了
+        if (inn === "NEXT") {
             if (n == total) {
                 return;
             }
             n++;
         }
-    }
-
-    if (tarTag === "LI") {
-        //->如果当前页和点击的LI内容一样,则不需要重新的处理
-        if (n == tar.innerHTML) {
+        sendAjax();
+    }).delegate("li", "click", function () {
+        var inn = parseFloat($(this).html());
+        if (inn == n) {
             return;
         }
-        n = parseFloat(tar.innerHTML);
-    }
+        n = inn;
+        sendAjax();
+    });
 
-    bindData();
-};
+    //->给元素的事件绑定方法这件事只需要在加载页面的时候执行一次即可,以后在触发这个计划表的时候不需要重新的绑定,所以第一次执行完成后我们只需要把这个方法在计划表中移除即可
+    $bindPlan.remove(bindEvent);
+}
+$bindPlan.add(bindEvent);
 
-//->给文本框的keyup事件绑定方法实现跳转到第几页
-search.onkeyup = function (ev) {
-    ev = ev || window.event;
-
-    //->只有按ENTER键才触发操作
-    if (ev.keyCode === 13) {
-        var val = this.value.replace(/^ +| +$/g, "");
-
-        //->验证输入内容的格式：
-        //1)如果不是数字,就显示当前页即可
-        var reg = /^-?(?:\d|(?:[1-9]\d+))(?:\.\d+)?$/;
-        if (!reg.test(val)) {
-            this.value = n;
-            return;
+//->给列表区域的每一条记录绑定点击事件
+function bindLink() {
+    $(".boxList").on("click", function (ev) {
+        var tar = ev.target,
+            $tar = $(tar),
+            tarTag = tar.tagName.toUpperCase();
+        if (tarTag === "SPAN") {
+            tar = ev.target.parentNode;
+            $tar = $(tar);
         }
+        //->通过以上操纵已经确定TAR或者$TAR都指的是当前的LI
+        //->在页面跳转的时候需要获取到当前LI所代表的学号,把学号传给详细页,所以需要之前绑定的时候就把学号保存在当前LI的自定义属性上
+        //window.location.href = "/detail.html?num=" + $tar.attr("num");
 
-        //2)如果是小数,让其四舍五入
-        reg = /^-?(?:\d|(?:[1-9]\d+))(?:\.\d+)$/;
-        if (reg.test(val)) {
-            val = Math.round(val);
+        //var para = "num=" + $tar.attr("num") + "&name=" + $tar.attr("name");
+        //para = encodeURIComponent(para);
+
+        var para = "num=" + $tar.attr("num") + "&name=" + escape($tar.attr("name"));
+        window.open("/detail.html?" + para);
+
+        //->window.location.href:在当前页面基础上打开一个新的页面(当前页会关闭)
+        //->window.open():在新窗口打开新页面,当前页面不会关闭
+    });
+
+    //->本方法执行一次即可
+    $bindPlan.remove(arguments.callee);
+}
+$bindPlan.add(bindLink);
+
+
+function sendAjax() {
+    $.ajax({
+        url: "/getData?n=" + n,
+        type: "get",
+        dataType: "json",
+        cache: false,//->当前请求是否走缓存,默认是true:走缓存,false:不走缓存,原理其实就是在get请求的url地址末尾追加一个随机数
+        success: function (jsonData) {
+            if (jsonData) {
+                total = jsonData["total"];
+                $bindPlan.fire(jsonData["data"]);
+            }
         }
-
-        //3)如果小于1,让其等于1
-        if (val < 1) {
-            val = 1;
-        }
-
-        //4)如果大于总页数,让其等于最后一页
-        if (val > total) {
-            val = total;
-        }
-
-        //5)如果输入的值和当前页相等,则不进行任何的操作
-        if (n == val) {
-            n = val;
-            this.value = val;
-            return;
-        }
-
-        //6)正常的话,只需要让n=val
-        n = val;
-        this.value = val;
-
-        bindData();
-    }
-};
+    });
+}
+sendAjax();
