@@ -9,7 +9,7 @@ var sv = http.createServer(function (req, res) {
     if (pathname === "/test") {
         var callbackName = query["a"];//->fn
         res.writeHead(200, {'content-type': 'text/javascript;charset=utf-8;'});
-        res.end(callbackName + "(100)");//->"fn(100)"
+        res.end(callbackName+"(100)");//->"fn(100)"
     }
 });
 sv.listen(1234);
