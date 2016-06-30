@@ -14,33 +14,24 @@
     }
 }(String.prototype);
 
+var columnId = 100000;
 
-//->让左侧导航实现局部滚动(ISCROLL)
+//->局部滚动(ISCROLL)
 var $navScroll = new IScroll("#nav", {
     scrollbars: true,
     mouseWheel: true,
     bounce: false
 });
-
-//->让右侧区域实现局部滚动
 var $hotScroll = new IScroll("#hot", {
     scrollbars: true,
     mouseWheel: true,
     bounce: false
 });
-
-//->重置滚动条的样式
-var $content = $("#nav,#hot"),
-    $contentBars = $(".iScrollVerticalScrollbar");
-/*$content.on("mouseover", function () {
-    $(this).children(".iScrollVerticalScrollbar").css({
-        display: "block"
-    });
-}).on("mouseout", function () {
-    $(this).children(".iScrollVerticalScrollbar").css({
-        display: "none"
-    });
-});*/
+var $matchScroll = new IScroll("#matchList", {
+    scrollbars: true,
+    mouseWheel: true,
+    bounce: false
+});
 
 //->头部导航下载区域的展开和收起
 $(function () {
@@ -57,7 +48,6 @@ $(function () {
 
 //->JS控制SECTION区域的高度
 $(function () {
-    //->通过jQuery的css方法获取的结果是加上单位的,我们计算的话需要把单位去除掉
     change();
     function change() {
         var $section = $(".section");
@@ -65,11 +55,13 @@ $(function () {
         $section.css({
             height: curH
         });
-
-        //->在当前区域的高度发生改变的时候需要把所有经过ISCROLL处理的区域进行刷新&&把生成的滚动条样式进行重写
+        $section.find(".matchList").css({
+            height: curH - 100
+        });
         $navScroll.refresh();
         $hotScroll.refresh();
-        $contentBars.css({
+        $matchScroll.refresh();
+        $(".iScrollVerticalScrollbar").css({
             opacity: 0.3
         });
     }
@@ -86,7 +78,6 @@ function bindHTML(data, title) {
         $.each(data, function (index, curData) {
             var mt = curData["matchType"];
             if (mt == 4) {
-                //->所有的综合特殊赛事我们先过滤掉,因为没有写对应的HTML结构
                 return;
             }
             str += '<li>';
@@ -136,4 +127,149 @@ $(function () {
     });
 });
 
+//->绑定日期区域的数据
+var $calListUL = $("#calListUL");
+var maxL = 0, minL = 0;
+var $calendarCallbackList = $.Callbacks();
+//1)实现数据绑定
+$calendarCallbackList.add(function (today, data) {
+    var str = '';
+    $.each(data, function (index, curData) {
+        str += '<li date="' + curData["date"] + '">';
+        str += '<span class="week">' + curData["weekday"] + '</span>';
+        str += '<span class="time">' + curData["date"].myFormatTime("{1}-{2}") + '</span>';
+        str += '</li>';
+    });
+    $calListUL.html(str).css("width", data.length * 110);
+    minL = -(data.length - 7) * 110;
+});
+//2)让整个日期区域定位到当前的位置
+$calendarCallbackList.add(function (today, data) {
+    var $oLis = $calListUL.children("li"),
+        $todayLi = $oLis.filter("[date=" + today + "]"),
+        flag = true;
+    if ($todayLi.length === 0) {
+        //->在所有的LI中并没有今天日期这一项:我需要和每一个LI的时间进行比较,直到遇到一个比自己大的时间,我们结束查找
+        $oLis.each(function (index, curLi) {
+            if ($todayLi.length > 0) {
+                return;
+            }
+            var curLiTime = $(curLi).attr("date").replace(/-/g, "/");
+            var todayTime = today.replace(/-/g, "/");
+            if (new Date(curLiTime) > new Date(todayTime)) {
+                $todayLi = $(curLi);
+            }
+        });
+        if ($todayLi.length === 0) {
+            $todayLi = $oLis.eq($oLis.length - 1);
+        }
+        flag = false;
+    }
+    var $todayIndex = $todayLi.index(),
+        $tarLeft = -($todayIndex - 3) * 110;
+    $tarLeft = $tarLeft < minL ? minL : ($tarLeft > maxL ? maxL : $tarLeft);
+    $calListUL.css("left", $tarLeft);
+    $todayLi.addClass("bg").siblings().removeClass("bg");
+    if (flag) {
+        $todayLi.children("span").eq(0).html("今天");
+    }
 
+    //->展示数据
+    var strIn = Math.abs($tarLeft / 110);
+    var endIn = strIn + 6;
+    bindMatchHTML(columnId, $oLis.eq(strIn).attr("date"), $oLis.eq(endIn).attr("date"));
+});
+function getCalendarList(columnId) {
+    $.ajax({
+        url: "http://matchweb.sports.qq.com/kbs/calendar?columnId=" + columnId,
+        type: "get",
+        dataType: "jsonp",
+        success: function (jsonData) {
+            if (jsonData && jsonData["data"]) {
+                jsonData = jsonData["data"];
+                var today = jsonData["today"],
+                    data = jsonData["data"];
+
+                $calendarCallbackList.fire(today, data);
+            }
+        }
+    });
+}
+
+//->calendar区域事件委托
+$(".calendar").on("click", function (ev) {
+    var tar = ev.target,
+        $tar = $(tar),
+        tarTag = tar.tagName.toUpperCase();
+    var $tarParent = $tar.parents().add($tar);
+
+    //->左右切换按钮
+    var $tarLink = $tarParent.filter("a");
+    if ($tarLink.length > 0) {
+        var curL = parseFloat($calListUL.css("left"));
+        $tarLink.hasClass("calLeft") ? curL += 770 : curL -= 770;
+        curL = curL < minL ? minL : (curL > maxL ? maxL : curL);
+        $calListUL.finish().animate({left: curL}, 300, function () {
+            curL = Math.round(parseFloat($(this).css("left")) / 110) * 110;
+            $(this).css("left", curL);
+
+            //->让当前七个LI中的第一个有选中的样式
+            $(this).children("li").eq(Math.abs(curL) / 110).addClass("bg").siblings().removeClass("bg");
+
+            //->展示数据
+            var strIn = Math.abs(curL / 110);
+            var endIn = strIn + 6;
+            var $oLis = $(this).children("li");
+            bindMatchHTML(columnId, $oLis.eq(strIn).attr("date"), $oLis.eq(endIn).attr("date"));
+        });
+        return;
+    }
+
+    //->点击LI
+    var $tarLi = $tarParent.filter("li");
+    if ($tarLi.length > 0) {
+        $tarLi.addClass("bg").siblings().removeClass("bg");
+        //$matchScroll.scrollTo(x,y);
+        //$matchScroll.scrollToElement();
+    }
+});
+
+function bindMatchHTML(columnId, strTime, endTime) {
+    $.ajax({
+        url: "http://matchweb.sports.qq.com/kbs/list?columnId=" + columnId + "&startTime=" + strTime + "&endTime=" + endTime,
+        type: "get",
+        dataType: "jsonp",
+        success: function (jsonData) {
+            $("#matchList").children("div").eq(0).html(JSON.stringify(jsonData));
+            $matchScroll.refresh();
+        }
+    });
+}
+
+$("#nav li").on("click", function () {
+    var $hot = $("#hot"),
+        $match = $("#match"),
+        index = $(this).index();
+
+    //->切换赛事
+    if (index > 0) {
+        columnId = $(this).attr("columnId");
+        if (!columnId) {
+            return;
+        }
+        getCalendarList(columnId);
+    }
+
+    $(this).addClass("bg").siblings().removeClass("bg");
+
+    //->切换热门
+    if (index === 0) {
+        $hot.css("display", "block");
+        $match.css("display", "none");
+    } else {
+        $hot.css("display", "none");
+        $match.css("display", "block");
+    }
+
+    $navScroll.scrollToElement(this, 500);
+});
