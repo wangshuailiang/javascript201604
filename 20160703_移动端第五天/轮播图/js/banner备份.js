@@ -42,6 +42,10 @@ $(function () {
 
 //->开始我们的核心操作:轮播
 $(function () {
+    $(document).on("touchmove", function (ev) {
+        ev.preventDefault();
+    });
+
     var curW = document.documentElement.clientWidth;
     var $banner = $(".banner"),
         $wrap = $(".wrap"),
@@ -83,9 +87,13 @@ $(function () {
     }
 
     //->实现左右切换轮播
+    var moveFlag = false;
     $banner.on("touchstart", moveStart).on("touchmove", moving).on("touchend", moveEnd);
 
     function moveStart(ev) {
+        if (moveFlag) {
+            return;
+        }
         //->触摸的时候结束自动轮播
         window.clearInterval(autoTimer);
 
@@ -104,6 +112,9 @@ $(function () {
     }
 
     function moving(ev) {
+        if (moveFlag) {
+            return;
+        }
         var point = ev.touches[0];
         var strX = parseFloat($(this).attr("strX")),
             strY = parseFloat($(this).attr("strY")),
@@ -128,9 +139,10 @@ $(function () {
     }
 
     function moveEnd(ev) {
-        //->为了防止快速操作,开始进入的时候就把事件移除
-        $banner.off("touchstart", moveStart).off("touchmove", moving).off("touchend", moveEnd);
-
+        if (moveFlag) {
+            return;
+        }
+        moveFlag = true;
         var flag = $(this).attr("flag"),
             dir = $(this).attr("dir"),
             changeX = parseFloat($(this).attr("changeX"));
@@ -184,7 +196,7 @@ $(function () {
             $wrap[0].style.webkitTransform = "translateX(" + (-step * curW) + "px)";
         }
         autoTimer = window.setInterval(autoMove, interval);
-        $banner.on("touchstart", moveStart).on("touchmove", moving).on("touchend", moveEnd);
+        moveFlag = false;
     }
 });
 //->计算是否为滑动
